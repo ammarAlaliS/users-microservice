@@ -1,37 +1,40 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { User } from './interfaces/user.interface';
+import { User } from './entities/user.entity';
 
 @Injectable()
 export class UserService {
-  private users: User[] = [];
-  private idCounter = 1;
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {}
 
-  create(dto: CreateUserDto): User {
-    const newUser: User = { id: this.idCounter++, ...dto };
-    this.users.push(newUser);
-    return newUser;
+  async create(dto: CreateUserDto): Promise<User> {
+    const user = this.userRepository.create(dto);
+    return await this.userRepository.save(user);
   }
 
-  findAll(): User[] {
-    return this.users;
+  async findAll(): Promise<User[]> {
+    return await this.userRepository.find();
   }
 
-  findOne(id: number): User | undefined {
-    return this.users.find(u => u.id === id);
-  }
-
-  update(id: number, dto: UpdateUserDto): User | null {
-    const user = this.findOne(id);
-    if (!user) return null;
-    Object.assign(user, dto);
+  async findOne(id: number): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) throw new NotFoundException(`User with id ${id} not found`);
     return user;
   }
 
-  remove(id: number): User | null {
-    const index = this.users.findIndex(u => u.id === id);
-    if (index === -1) return null;
-    return this.users.splice(index, 1)[0];
+  async update(id: number, dto: UpdateUserDto): Promise<User> {
+    const user = await this.findOne(id);
+    Object.assign(user, dto);
+    return await this.userRepository.save(user);
+  }
+
+  async remove(id: number): Promise<void> {
+    const user = await this.findOne(id);
+    await this.userRepository.remove(user);
   }
 }
